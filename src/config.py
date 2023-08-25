@@ -12,3 +12,5 @@ APPLICATION_SIZE = (664, 350)
 RECORDED_FILES_PATH = os.path.join(os.path.dirname(basedir), "recordings")
 if not os.path.exists(RECORDED_FILES_PATH):
     os.makedirs(RECORDED_FILES_PATH)
+
+DATABASE_URL = 'postgresql://username:password@localhost/voice_recorder'

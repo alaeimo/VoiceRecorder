@@ -5,7 +5,10 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QWidget, QMainWindow
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from .audio_tools import AudioProcessor
+from .models import RecordingFile, Session
 from . import config, utils
+
+session = Session()
 
 class WaveformViewer(QWidget):
     def __init__(self):
@@ -129,9 +132,10 @@ class MainWindow(QMainWindow):
             self.play_button.setIcon(self._pause_icon)
             self.start_record_button.setEnabled(False)
             self.stop_record_button.setEnabled(False)
-            last_audio_file = utils.get_last_audio_file_name()
+            
+            last_audio_file = session.query(RecordingFile).order_by(RecordingFile.id.desc()).first()
             if last_audio_file:
-                self._audio_processor.start_playing(last_audio_file)
+                self._audio_processor.start_playing(last_audio_file.file_path)
                 waveform_data = self._audio_processor.playing_thread.audio_data
                 self.waveform_viewer.update_waveform(waveform_data)  
             else:
@@ -139,7 +143,11 @@ class MainWindow(QMainWindow):
                 self.reset_layout()
 
     def start_record_button_click(self):
-        file_path = utils.create_new_audio_file_name()
+        file_name = utils.create_new_audio_file_name()
+        file_path = utils.get_audio_file_path(file_name)
+        recording_file = RecordingFile(file_name=file_name, file_path=file_path)
+        session.add(recording_file)
+        session.commit()
         self._audio_processor.start_recording(file_path)
         self.play_button.setEnabled(False)
         self.start_record_button.setEnabled(False)

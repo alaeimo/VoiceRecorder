@@ -32,10 +32,31 @@ Follow these steps to run the application on your machine:
    pip install -r requirements.txt
    ```
 
-5. Run the application:
+5. Configure Alembic:
+   Edit the alembic.ini file. Update the sqlalchemy.url parameter to your database URL:
+   ```bash
+   sqlalchemy.url = postgresql://username:password@localhost/voice_recorder
+   ```
+
+6. Configure SQLAlchemy:
+  Edit the src/config.py file. Update the DATABASE_URL parameter to your database URL:
+   ```bash
+   DATABASE_URL = 'postgresql://username:password@localhost/voice_recorder'
+   ```
+
+7. Apply the migration to the database:
+   Run the migration to apply the changes to the database:
+   ```bash
+   alembic upgrade head
+   ```
+
+8. Run the application:
    ```bash
    python app.py
    ```
+
+
+
 
 The application will launch, allowing you to record and play audio files. Enjoy recording your audio with ease!
 

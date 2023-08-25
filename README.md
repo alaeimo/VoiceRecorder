@@ -1,5 +1,5 @@
 
-```markdown
+
 # Voice Recorder App
 
 ![alt text](https://github.com/alaeimo/VoiceRecorder/blob/master/src/icons/app.png)
@@ -40,4 +40,3 @@ Follow these steps to run the application on your machine:
 The application will launch, allowing you to record and play audio files. Enjoy recording your audio with ease!
 
 For more details, feel free to explore the code and make modifications according to your needs. If you encounter any issues or have suggestions, please don't hesitate to open an issue or pull request.
-```

@@ -2,7 +2,7 @@
 ```markdown
 # Voice Recorder App
 
-![Project Image](https://github.com/alaeimo/VoiceRecorder/blob/master/src/icons/app.png)
+![alt text](https://github.com/alaeimo/VoiceRecorder/blob/master/src/icons/app.png)
 
 This application is a simple Voice Recorder built using Python. It utilizes PyQt5, Python 3.10.9, and the sounddevice and soundfile libraries to provide audio recording functionality.
 

@@ -4,7 +4,9 @@ import qdarkstyle
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QWidget, QMainWindow
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from .audio_tools import AudioProcessor
+from pynput import keyboard
+from datetime import datetime
+from .audio_tools import AudioProcessor, KeyInputController
 from .models import RecordingFile, Session
 from . import config, utils
 
@@ -20,7 +22,8 @@ class WaveformViewer(QWidget):
         self.layout.addWidget(self.canvas)
         self.setLayout(self.layout)
         self.reset_ax()
-        
+        self.display_text()
+
     def reset_ax(self):
         self.ax.clear()
         self.ax.set_xlabel('')
@@ -28,11 +31,19 @@ class WaveformViewer(QWidget):
         self.ax.set_axis_off()
         self.canvas.draw()
 
+    def display_text(self, text="No waveform data available!"):
+        self.ax.text(0.5, 0.5, text, horizontalalignment='center', verticalalignment='center', transform=self.ax.transAxes)    
+
     def update_waveform(self, waveform_data):
         self.ax.clear()
         self.ax.plot(waveform_data, color='orange')
         self.ax.set_axis_off()
         self.canvas.draw()
+
+    def update_timer(self):
+        elapsed_time = datetime.now() - self.start_time
+        elapsed_time_str = str(elapsed_time).split(".")[0]
+        self.display_text(elapsed_time_str)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -41,11 +52,15 @@ class MainWindow(QMainWindow):
         self.resize(*config.APPLICATION_SIZE)
         self.setMaximumSize(QtCore.QSize(*config.APPLICATION_SIZE))
         self._audio_processor = AudioProcessor()
+        self._keyboard_controller = KeyInputController(self.on_key_press)
+        self._keyboard_controller.start()
         self._create_widgets()
         self._initialize_icons()
+        self._apply_button_styles()
         self._create_layouts()
         self._define_buttons_handlers()
         self._define_thread_signals()
+        self.current_recording = None
 
     def _define_thread_signals(self):
         self._audio_processor.playing_finished.connect(self.on_playing_finished)
@@ -78,9 +93,9 @@ class MainWindow(QMainWindow):
         self.play_button.setGeometry(QtCore.QRect(580, 290, 75, 24))
         self.stop_record_button.setGeometry(QtCore.QRect(50, 290, 75, 24))
         self.start_record_button.setGeometry(QtCore.QRect(100, 290, 75, 24))
-        self.play_button.setFixedSize(32,32)
-        self.start_record_button.setFixedSize(32,32)
-        self.stop_record_button.setFixedSize(32,32)
+        self.play_button.setFixedSize(40,40)
+        self.start_record_button.setFixedSize(40,40)
+        self.stop_record_button.setFixedSize(40,40)
         self.play_button.setToolTip("Play the last recorded audio")
         self.start_record_button.setToolTip("Start recording audio")
         self.stop_record_button.setToolTip("Stop recording audio")
@@ -108,11 +123,24 @@ class MainWindow(QMainWindow):
                             QtGui.QIcon.Normal, 
                             QtGui.QIcon.Off)
         
+        icon_size = QtCore.QSize(40, 40)
         self.setWindowIcon(self._main_icon)
         self.play_button.setIcon(self._play_icon)
+        self.play_button.setIconSize(icon_size)
         self.start_record_button.setIcon(self._start_record_icon)
+        self.start_record_button.setIconSize(icon_size)
         self.stop_record_button.setIcon(self._stop_record_icon)
-                                
+        self.stop_record_button.setIconSize(icon_size)
+
+    def _apply_button_styles(self):
+            button_style = "background: transparent; border: none;"
+            hand_cursor = QtGui.QCursor(QtCore.Qt.PointingHandCursor)
+            self.play_button.setCursor(hand_cursor)
+            self.start_record_button.setCursor(hand_cursor)
+            self.stop_record_button.setCursor(hand_cursor)
+            self.play_button.setStyleSheet(button_style)
+            self.start_record_button.setStyleSheet(button_style)
+            self.stop_record_button.setStyleSheet(button_style)                                
     
     def reset_layout(self):
         self.play_button.setIcon(self._play_icon)
@@ -120,27 +148,33 @@ class MainWindow(QMainWindow):
         self.start_record_button.setEnabled(True)
         self.stop_record_button.setEnabled(False)
 
-    def stop_processor(self):
-        self._audio_processor.stop_palying()
-        self._audio_processor.stop_recording()
-
     def play_button_click(self):
         if self._audio_processor.is_playing:
-            self.stop_processor()
+            self._audio_processor.stop_palying()
             self.reset_layout()
         else:
-            self.play_button.setIcon(self._pause_icon)
-            self.start_record_button.setEnabled(False)
-            self.stop_record_button.setEnabled(False)
-            
-            last_audio_file = session.query(RecordingFile).order_by(RecordingFile.id.desc()).first()
-            if last_audio_file:
-                self._audio_processor.start_playing(last_audio_file.file_path)
-                waveform_data = self._audio_processor.playing_thread.audio_data
-                self.waveform_viewer.update_waveform(waveform_data)  
+            if not self.current_recording:
+                self.current_recording = session.query(RecordingFile).order_by(RecordingFile.id.desc()).first()
+            if self.current_recording:
+                self.play_audio(self.current_recording.file_path)
             else:
-                self.setWindowTitle(config.APPLICATION_TITLE + " File Not Found!")
-                self.reset_layout()
+                print("Not Found")
+
+    def play_audio(self, audio_file_path):
+        if self._audio_processor.is_playing:
+            self._audio_processor.stop_palying()
+            self.reset_layout()
+
+        self.play_button.setIcon(self._pause_icon)
+        self.start_record_button.setEnabled(False)
+        self.stop_record_button.setEnabled(False)
+        if audio_file_path:
+            self._audio_processor.start_playing(audio_file_path)
+            waveform_data = self._audio_processor.playing_thread.audio_data
+            self.waveform_viewer.update_waveform(waveform_data)  
+        else:
+            self.setWindowTitle(config.APPLICATION_TITLE + " File Not Found!")
+            self.reset_layout()
 
     def start_record_button_click(self):
         file_name = utils.create_new_audio_file_name()
@@ -148,22 +182,36 @@ class MainWindow(QMainWindow):
         recording_file = RecordingFile(file_name=file_name, file_path=file_path)
         session.add(recording_file)
         session.commit()
+        self.current_recording = recording_file
         self._audio_processor.start_recording(file_path)
         self.play_button.setEnabled(False)
         self.start_record_button.setEnabled(False)
         self.stop_record_button.setEnabled(True)
         
     def stop_record_button_click(self):
-        self.stop_processor()
+        self._audio_processor.stop_recording()
         self.reset_layout()
 
     def on_recording_finished(self):
-        self.stop_processor()
+        self._audio_processor.stop_recording()
         self.reset_layout()
 
     def on_playing_finished(self):
-        self.stop_processor()
+        self._audio_processor.stop_palying()
         self.reset_layout()
+
+    def on_key_press(self, key):
+        total_recordings = session.query(RecordingFile).count()
+        if total_recordings > 0:
+            if not self.current_recording:
+                self.current_recording = session.query(RecordingFile).order_by(RecordingFile.id.desc()).first()
+            if key == keyboard.Key.page_up: #Previous Audio
+                self.current_recording = session.query(RecordingFile).filter(RecordingFile.id < self.current_recording.id).order_by(RecordingFile.id.desc()).first()
+            elif key == keyboard.Key.page_down: #Next Audio
+                self.current_recording = session.query(RecordingFile).filter(RecordingFile.id > self.current_recording.id).order_by(RecordingFile.id.desc()).first()
+
+        if self.current_recording:
+            self.play_audio(self.current_recording.file_path)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

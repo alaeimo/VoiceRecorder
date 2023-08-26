@@ -2,6 +2,7 @@ import sounddevice as sd
 import soundfile as sf
 import time
 from PyQt5 import QtCore
+from pynput import keyboard
 import queue
 
 class RecorderThread(QtCore.QThread):
@@ -80,8 +81,8 @@ class AudioProcessor(QtCore.QObject):
 
     def stop_recording(self):
         if self.recording_thread:
-            self.recording_thread.stop()
             self.is_recording = False
+            self.recording_thread.stop()
 
     def start_playing(self, file_path):
         if not self.playing_thread or not self.playing_thread.isRunning():
@@ -92,6 +93,42 @@ class AudioProcessor(QtCore.QObject):
 
     def stop_palying(self):
         if self.playing_thread:
-            self.playing_thread.stop()
             self.is_playing = False
+            self.playing_thread.stop()
 
+class KeyInputThread(QtCore.QThread):
+    key_press_signal = QtCore.pyqtSignal(keyboard.Key)
+    def __init__(self):
+        super().__init__()
+        self.is_running = False
+
+    def run(self):
+        self.is_running = True
+        def on_press(key):
+            if key == keyboard.Key.page_up or key == keyboard.Key.page_down:
+                self.key_press_signal.emit(key)
+                
+        with keyboard.Listener(on_press=on_press) as listener:
+            while self.is_running:
+                pass
+
+    def stop(self):
+        self.is_running = False
+        self.stop()
+        self.wait()
+
+class KeyInputController(QtCore.QObject):
+    def __init__(self, key_press_handler):
+        super().__init__()
+        self.key_press_handler = key_press_handler
+        self.key_input_thread = KeyInputThread()
+        self.key_input_thread.key_press_signal.connect(self.on_key_press)
+
+    def start(self):
+        self.key_input_thread.start()
+    
+    def on_key_press(self, key):
+        self.key_press_handler(key)
+    
+    def stop(self):
+        self.key_input_thread.stop()

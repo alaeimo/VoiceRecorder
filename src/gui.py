@@ -34,7 +34,7 @@ class WaveformViewer(QWidget):
         self.timer_bar.setValue(0)
         self.timer_bar.setFormat("0/0 seconds")
 
-    def display_text(self, text="Press Play Button to Play Last Recording."):
+    def display_text(self, text="Press the Play Button to Play the Last Recording."):
         self.ax.text(0.5, 0.5, text, horizontalalignment='center', verticalalignment='center', transform=self.ax.transAxes)    
         self.canvas.draw()
 

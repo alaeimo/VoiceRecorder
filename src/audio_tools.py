@@ -47,14 +47,15 @@ class AudioPlayerThread(QtCore.QThread):
         if not self.is_playing:
             self.is_playing = True
             sd.play(self.audio_data, samplerate=self.sample_rate)
+            info = sf.info(self.file_path)
+            duration = info.duration
             while self.is_playing:
                 elapsed_time = time.time() - start_time
-                remaining_time = len(self.audio_data) / self.sample_rate - elapsed_time
-                self.play_signal.emit(elapsed_time, remaining_time)
+                self.play_signal.emit(elapsed_time, duration)
                 if elapsed_time >= len(self.audio_data) / self.sample_rate:
                     self.stop()
                     break
-            self.play_signal.emit(0, 0)
+            self.play_signal.emit(duration, duration)
             self.is_playing = False
 
     def stop(self):
@@ -65,8 +66,9 @@ class AudioProcessor(QtCore.QObject):
     recording_finished = QtCore.pyqtSignal()
     playing_finished = QtCore.pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, on_playing_handler):
         super().__init__()
+        self.on_playing_handler = on_playing_handler
         self.is_recording = False
         self.is_playing = False
         self.recording_thread = None
@@ -88,6 +90,7 @@ class AudioProcessor(QtCore.QObject):
         if not self.playing_thread or not self.playing_thread.isRunning():
             self.playing_thread = AudioPlayerThread(file_path)
             self.playing_thread.finished.connect(self.playing_finished.emit)
+            self.playing_thread.play_signal.connect(self.on_playing)
             self.playing_thread.start()
             self.is_playing = True
 
@@ -95,6 +98,9 @@ class AudioProcessor(QtCore.QObject):
         if self.playing_thread:
             self.is_playing = False
             self.playing_thread.stop()
+
+    def on_playing(self, elapsed_time, duration):
+        self.on_playing_handler(elapsed_time, duration)
 
 class KeyInputThread(QtCore.QThread):
     key_press_signal = QtCore.pyqtSignal(keyboard.Key)

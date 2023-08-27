@@ -1,8 +1,8 @@
-import sys
+import sys, os
 import matplotlib.pyplot as plt
 import qdarkstyle
 from PyQt5 import QtCore, QtWidgets, QtGui
-from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QWidget, QMainWindow
+from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QWidget, QMainWindow, QProgressBar
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from pynput import keyboard
 from datetime import datetime
@@ -19,20 +19,25 @@ class WaveformViewer(QWidget):
         self.figure, self.ax = plt.subplots()
         self.canvas = FigureCanvas(self.figure)
         self.layout = QVBoxLayout()
+        self.timer_bar = QProgressBar()
         self.layout.addWidget(self.canvas)
+        self.layout.addWidget(self.timer_bar)
         self.setLayout(self.layout)
-        self.reset_ax()
-        self.display_text()
+        self.reset_layout()
 
-    def reset_ax(self):
+    def reset_layout(self):
         self.ax.clear()
         self.ax.set_xlabel('')
         self.ax.set_ylabel('')
         self.ax.set_axis_off()
         self.canvas.draw()
+        self.timer_bar.setMaximum(0)
+        self.timer_bar.setValue(0)
+        self.timer_bar.setFormat("0/0 seconds")
 
     def display_text(self, text="No waveform data available!"):
         self.ax.text(0.5, 0.5, text, horizontalalignment='center', verticalalignment='center', transform=self.ax.transAxes)    
+        self.canvas.draw()
 
     def update_waveform(self, waveform_data):
         self.ax.clear()
@@ -40,10 +45,10 @@ class WaveformViewer(QWidget):
         self.ax.set_axis_off()
         self.canvas.draw()
 
-    def update_timer(self):
-        elapsed_time = datetime.now() - self.start_time
-        elapsed_time_str = str(elapsed_time).split(".")[0]
-        self.display_text(elapsed_time_str)
+    def update_timer_bar(self, elapsed_time, duration):
+        self.timer_bar.setMaximum(int(duration*100))
+        self.timer_bar.setValue(int(elapsed_time*100))
+        self.timer_bar.setFormat(f"{round(elapsed_time,2)} / {round(duration,2)} seconds")
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -51,7 +56,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(config.APPLICATION_TITLE)
         self.resize(*config.APPLICATION_SIZE)
         self.setMaximumSize(QtCore.QSize(*config.APPLICATION_SIZE))
-        self._audio_processor = AudioProcessor()
+        self._audio_processor = AudioProcessor(self.on_playing)
         self._keyboard_controller = KeyInputController(self.on_key_press)
         self._keyboard_controller.start()
         self._create_widgets()
@@ -60,7 +65,9 @@ class MainWindow(QMainWindow):
         self._create_layouts()
         self._define_buttons_handlers()
         self._define_thread_signals()
-        self.current_recording = None
+        self.current_recording = session.query(RecordingFile).order_by(RecordingFile.id.desc()).first()
+        if self.current_recording:
+            self.waveform_viewer.display_text(f"Last Recording: {self.current_recording.file_name}")
 
     def _define_thread_signals(self):
         self._audio_processor.playing_finished.connect(self.on_playing_finished)
@@ -141,8 +148,14 @@ class MainWindow(QMainWindow):
             self.play_button.setStyleSheet(button_style)
             self.start_record_button.setStyleSheet(button_style)
             self.stop_record_button.setStyleSheet(button_style)                                
-    
+
+
     def reset_layout(self):
+        self.setWindowTitle(config.APPLICATION_TITLE)
+        self.reset_buttons()
+        self.waveform_viewer.reset_layout()
+
+    def reset_buttons(self):
         self.play_button.setIcon(self._play_icon)
         self.play_button.setEnabled(True)
         self.start_record_button.setEnabled(True)
@@ -156,27 +169,33 @@ class MainWindow(QMainWindow):
             if not self.current_recording:
                 self.current_recording = session.query(RecordingFile).order_by(RecordingFile.id.desc()).first()
             if self.current_recording:
-                self.play_audio(self.current_recording.file_path)
-            else:
-                print("Not Found")
+                self.play_audio(self.current_recording)
 
-    def play_audio(self, audio_file_path):
+    def play_audio(self, audio_file_record):
         if self._audio_processor.is_playing:
             self._audio_processor.stop_palying()
-            self.reset_layout()
+            self.reset_buttons()
 
         self.play_button.setIcon(self._pause_icon)
         self.start_record_button.setEnabled(False)
         self.stop_record_button.setEnabled(False)
-        if audio_file_path:
-            self._audio_processor.start_playing(audio_file_path)
-            waveform_data = self._audio_processor.playing_thread.audio_data
-            self.waveform_viewer.update_waveform(waveform_data)  
+        if audio_file_record:
+            if os.path.exists(audio_file_record.file_path):
+                self.setWindowTitle(config.APPLICATION_TITLE + f" {audio_file_record.file_name}")
+                self._audio_processor.start_playing(audio_file_record.file_path)
+                waveform_data = self._audio_processor.playing_thread.audio_data
+                self.waveform_viewer.update_waveform(waveform_data)  
+            else:
+                self.setWindowTitle(config.APPLICATION_TITLE + f" File Not Found!")
+                self.waveform_viewer.reset_layout()
+                self.waveform_viewer.display_text(f"File {audio_file_record.file_name} Not Found!")
         else:
-            self.setWindowTitle(config.APPLICATION_TITLE + " File Not Found!")
-            self.reset_layout()
+            self.reset_buttons()
 
     def start_record_button_click(self):
+        self.setWindowTitle(config.APPLICATION_TITLE + " Redording...")
+        self.waveform_viewer.reset_layout()
+        self.waveform_viewer.display_text("Recording...")
         file_name = utils.create_new_audio_file_name()
         file_path = utils.get_audio_file_path(file_name)
         recording_file = RecordingFile(file_name=file_name, file_path=file_path)
@@ -190,15 +209,19 @@ class MainWindow(QMainWindow):
         
     def stop_record_button_click(self):
         self._audio_processor.stop_recording()
-        self.reset_layout()
 
     def on_recording_finished(self):
         self._audio_processor.stop_recording()
+        self.setWindowTitle(config.APPLICATION_TITLE)
         self.reset_layout()
+        self.waveform_viewer.display_text(f"Last Recording: {self.current_recording.file_name}")
 
     def on_playing_finished(self):
         self._audio_processor.stop_palying()
-        self.reset_layout()
+        self.reset_buttons()
+
+    def on_playing(self, elapsed_time, duration):
+        self.waveform_viewer.update_timer_bar(elapsed_time, duration)
 
     def on_key_press(self, key):
         total_recordings = session.query(RecordingFile).count()
@@ -208,10 +231,10 @@ class MainWindow(QMainWindow):
             if key == keyboard.Key.page_up: #Previous Audio
                 self.current_recording = session.query(RecordingFile).filter(RecordingFile.id < self.current_recording.id).order_by(RecordingFile.id.desc()).first()
             elif key == keyboard.Key.page_down: #Next Audio
-                self.current_recording = session.query(RecordingFile).filter(RecordingFile.id > self.current_recording.id).order_by(RecordingFile.id.desc()).first()
-
+                self.current_recording = session.query(RecordingFile).filter(RecordingFile.id > self.current_recording.id).order_by(RecordingFile.id.asc()).first()
+        
         if self.current_recording:
-            self.play_audio(self.current_recording.file_path)
+            self.play_audio(self.current_recording)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

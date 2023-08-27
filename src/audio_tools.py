@@ -46,7 +46,8 @@ class AudioPlayerThread(QtCore.QThread):
         start_time = time.time()
         if not self.is_playing:
             self.is_playing = True
-            sd.play(self.audio_data, samplerate=self.sample_rate)
+            buffer_size = 2048 
+            sd.play(self.audio_data, samplerate=self.sample_rate, blocksize=buffer_size)
             info = sf.info(self.file_path)
             duration = info.duration
             while self.is_playing:

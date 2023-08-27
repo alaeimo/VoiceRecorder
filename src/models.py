@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, DateTime 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy_utils import database_exists, create_database
 from sqlalchemy.orm import sessionmaker
 from src.config import DATABASE_URL
 from datetime import datetime

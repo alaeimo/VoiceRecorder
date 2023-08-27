@@ -5,7 +5,6 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5.QtWidgets import QApplication, QVBoxLayout, QHBoxLayout, QWidget, QMainWindow, QProgressBar
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from pynput import keyboard
-from datetime import datetime
 from .audio_tools import AudioProcessor, KeyInputController
 from .models import RecordingFile, Session
 from . import config, utils
@@ -35,7 +34,7 @@ class WaveformViewer(QWidget):
         self.timer_bar.setValue(0)
         self.timer_bar.setFormat("0/0 seconds")
 
-    def display_text(self, text="No waveform data available!"):
+    def display_text(self, text="Press Play Button to Play Last Recording."):
         self.ax.text(0.5, 0.5, text, horizontalalignment='center', verticalalignment='center', transform=self.ax.transAxes)    
         self.canvas.draw()
 
@@ -65,9 +64,8 @@ class MainWindow(QMainWindow):
         self._create_layouts()
         self._define_buttons_handlers()
         self._define_thread_signals()
-        self.current_recording = session.query(RecordingFile).order_by(RecordingFile.id.desc()).first()
-        if self.current_recording:
-            self.waveform_viewer.display_text(f"Last Recording: {self.current_recording.file_name}")
+        self.waveform_viewer.display_text()
+        self.current_recording = None
 
     def _define_thread_signals(self):
         self._audio_processor.playing_finished.connect(self.on_playing_finished)

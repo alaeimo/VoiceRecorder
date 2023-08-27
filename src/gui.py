@@ -73,6 +73,8 @@ class MainWindow(QMainWindow):
 
     def _define_buttons_handlers(self):
         self.play_button.clicked.connect(self.play_button_click)
+        self.play_next_button.clicked.connect(self.play_next_audio_button_click)
+        self.play_prev_button.clicked.connect(self.play_prev_audio_button_click)
         self.start_record_button.clicked.connect(self.start_record_button_click)
         self.stop_record_button.clicked.connect(self.stop_record_button_click)
         self.stop_record_button.setEnabled(False)
@@ -82,7 +84,9 @@ class MainWindow(QMainWindow):
         self.buttons_layout = QHBoxLayout()
         self.buttons_layout.addWidget(self.stop_record_button)
         self.buttons_layout.addWidget(self.start_record_button)
+        self.buttons_layout.addWidget(self.play_prev_button)
         self.buttons_layout.addWidget(self.play_button)
+        self.buttons_layout.addWidget(self.play_next_button)
         self.layout.addWidget(self.waveform_viewer)
         self.layout.addLayout(self.buttons_layout)
 
@@ -93,21 +97,31 @@ class MainWindow(QMainWindow):
     def _create_widgets(self):
         self.waveform_viewer = WaveformViewer()
         self.play_button = QtWidgets.QPushButton(self)
+        self.play_next_button = QtWidgets.QPushButton(self)
+        self.play_prev_button = QtWidgets.QPushButton(self)
         self.stop_record_button = QtWidgets.QPushButton(self)
         self.start_record_button = QtWidgets.QPushButton(self)
-        self.play_button.setGeometry(QtCore.QRect(580, 290, 75, 24))
         self.stop_record_button.setGeometry(QtCore.QRect(50, 290, 75, 24))
         self.start_record_button.setGeometry(QtCore.QRect(100, 290, 75, 24))
+        self.play_prev_button.setGeometry(QtCore.QRect(505, 290, 75, 24))
+        self.play_button.setGeometry(QtCore.QRect(580, 290, 75, 24))
+        self.play_next_button.setGeometry(QtCore.QRect(660, 290, 75, 24))
         self.play_button.setFixedSize(40,40)
+        self.play_next_button.setFixedSize(40,40)
+        self.play_prev_button.setFixedSize(40,40)
         self.start_record_button.setFixedSize(40,40)
         self.stop_record_button.setFixedSize(40,40)
         self.play_button.setToolTip("Play the last recorded audio")
+        self.play_next_button.setToolTip("Play the next recorded audio")
+        self.play_prev_button.setToolTip("Play the previous recorded audio")
         self.start_record_button.setToolTip("Start recording audio")
         self.stop_record_button.setToolTip("Stop recording audio")
 
     def _initialize_icons(self):
         self._main_icon = QtGui.QIcon()
         self._play_icon = QtGui.QIcon()
+        self._next_icon = QtGui.QIcon()
+        self._prev_icon = QtGui.QIcon()
         self._pause_icon = QtGui.QIcon()
         self._start_record_icon = QtGui.QIcon()
         self._stop_record_icon = QtGui.QIcon()
@@ -116,6 +130,12 @@ class MainWindow(QMainWindow):
                             QtGui.QIcon.Normal, 
                             QtGui.QIcon.Off)
         self._play_icon.addPixmap(QtGui.QPixmap(config.PLAY_ICON_FILE), 
+                            QtGui.QIcon.Normal, 
+                            QtGui.QIcon.Off)
+        self._next_icon.addPixmap(QtGui.QPixmap(config.NEXT_ICON_FILE), 
+                            QtGui.QIcon.Normal, 
+                            QtGui.QIcon.Off)
+        self._prev_icon.addPixmap(QtGui.QPixmap(config.PREV_ICON_FILE), 
                             QtGui.QIcon.Normal, 
                             QtGui.QIcon.Off)
         self._pause_icon.addPixmap(QtGui.QPixmap(config.PAUSE_ICON_FILE),
@@ -132,21 +152,28 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(self._main_icon)
         self.play_button.setIcon(self._play_icon)
         self.play_button.setIconSize(icon_size)
+        self.play_next_button.setIcon(self._next_icon)
+        self.play_next_button.setIconSize(icon_size)
+        self.play_prev_button.setIcon(self._prev_icon)
+        self.play_prev_button.setIconSize(icon_size)
         self.start_record_button.setIcon(self._start_record_icon)
         self.start_record_button.setIconSize(icon_size)
         self.stop_record_button.setIcon(self._stop_record_icon)
         self.stop_record_button.setIconSize(icon_size)
 
     def _apply_button_styles(self):
-            button_style = "background: transparent; border: none;"
-            hand_cursor = QtGui.QCursor(QtCore.Qt.PointingHandCursor)
-            self.play_button.setCursor(hand_cursor)
-            self.start_record_button.setCursor(hand_cursor)
-            self.stop_record_button.setCursor(hand_cursor)
-            self.play_button.setStyleSheet(button_style)
-            self.start_record_button.setStyleSheet(button_style)
-            self.stop_record_button.setStyleSheet(button_style)                                
-
+        button_style = "background: transparent; border: none;"
+        hand_cursor = QtGui.QCursor(QtCore.Qt.PointingHandCursor)
+        self.play_button.setCursor(hand_cursor)
+        self.play_next_button.setCursor(hand_cursor)
+        self.play_prev_button.setCursor(hand_cursor)
+        self.start_record_button.setCursor(hand_cursor)
+        self.stop_record_button.setCursor(hand_cursor)
+        self.play_button.setStyleSheet(button_style)
+        self.play_next_button.setStyleSheet(button_style)                                
+        self.play_prev_button.setStyleSheet(button_style)                                
+        self.start_record_button.setStyleSheet(button_style)
+        self.stop_record_button.setStyleSheet(button_style)
 
     def reset_layout(self):
         self.setWindowTitle(config.APPLICATION_TITLE)
@@ -162,7 +189,7 @@ class MainWindow(QMainWindow):
     def play_button_click(self):
         if self._audio_processor.is_playing:
             self._audio_processor.stop_palying()
-            self.reset_layout()
+            self.reset_buttons()
         else:
             if not self.current_recording:
                 self.current_recording = session.query(RecordingFile).order_by(RecordingFile.id.desc()).first()
@@ -221,18 +248,30 @@ class MainWindow(QMainWindow):
     def on_playing(self, elapsed_time, duration):
         self.waveform_viewer.update_timer_bar(elapsed_time, duration)
 
-    def on_key_press(self, key):
+    def navigate_audio(self, direction):
         total_recordings = session.query(RecordingFile).count()
         if total_recordings > 0:
             if not self.current_recording:
                 self.current_recording = session.query(RecordingFile).order_by(RecordingFile.id.desc()).first()
-            if key == keyboard.Key.page_up: #Previous Audio
+            if direction == "prev":
                 self.current_recording = session.query(RecordingFile).filter(RecordingFile.id < self.current_recording.id).order_by(RecordingFile.id.desc()).first()
-            elif key == keyboard.Key.page_down: #Next Audio
+            elif direction == "next": 
                 self.current_recording = session.query(RecordingFile).filter(RecordingFile.id > self.current_recording.id).order_by(RecordingFile.id.asc()).first()
         
         if self.current_recording:
             self.play_audio(self.current_recording)
+
+    def play_next_audio_button_click(self):
+        self.navigate_audio("next")
+
+    def play_prev_audio_button_click(self):
+        self.navigate_audio("prev")
+
+    def on_key_press(self, key):
+        if key == keyboard.Key.page_up: 
+            self.navigate_audio("prev")
+        elif key == keyboard.Key.page_down: 
+            self.navigate_audio("next")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
